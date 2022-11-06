@@ -381,7 +381,7 @@ uint8_t ABS() {
 
     uint16_t hi = BUS_cpuRead(pc);
     pc++;
-    addr_abs = hi << 8 | lo;
+    addr_abs = (hi << 8) | lo;
 
     return 0;
 }
@@ -401,7 +401,7 @@ uint8_t ABY() {
     pc++;
     uint16_t hi = BUS_cpuRead(pc);
     pc++;
-    addr_abs = hi << 8 | lo;
+    addr_abs = (hi << 8) | lo;
     addr_abs += (uint16_t)y;
     return 0;
 }
@@ -437,7 +437,7 @@ uint8_t IZY() {
     uint16_t t = BUS_cpuRead(pc);
     pc++;
 
-    uint16_t lo = BUS_cpuRead(t & 0x00FF);
+    uint16_t lo = BUS_cpuRead((t) & 0x00FF);
     uint16_t hi = BUS_cpuRead((t + 1) & 0x00FF);
 
     addr_abs = (hi << 8) | lo;
@@ -590,7 +590,7 @@ uint8_t BVC() {
 }
 
 uint8_t BVS() {
-    if (getFlag(V) == 1) {
+    if (getFlag(V)) {
         CPU_cycle++;
         addr_abs = pc + addr_rel;
         pc = pc + addr_rel;
@@ -620,9 +620,9 @@ uint8_t CLV() {
 
 uint8_t CMP() {
     fetch();
-    uint16_t tmp = (uint16_t)a - (uint16_t)fetched;
-    setFlag(N, tmp & 0x0080);
-    setFlag(Z, (tmp & 0x00FF) == 0);
+    uint8_t tmp = a - fetched;
+    setFlag(N, tmp & 0x80);
+    setFlag(Z, a == fetched);
     setFlag(C, a >= fetched);
     return 0;
 }
@@ -965,7 +965,7 @@ uint8_t XXX() {
 }
 
 uint8_t getFlag(FLAGS p) {
-    return status & p;
+    return (status & p) ? 1 : 0;
 }
 
 void setFlag(FLAGS p, uint16_t a) {

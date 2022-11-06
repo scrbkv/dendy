@@ -1,0 +1,2 @@
+../NES/Src/BUS.c:18:9:BUS_cpuRead	0	static
+../NES/Src/BUS.c:34:6:BUS_cpuWrite	32	static

@@ -1,0 +1,5 @@
+../NES/Src/Catridge.c:32:6:InitFlash	8	static
+../NES/Src/Catridge.c:37:9:isNesFile	8	static
+../NES/Src/Catridge.c:46:6:LoadCartridge	8432	static
+../NES/Src/Catridge.c:122:6:FindCartridges	4536	static
+../NES/Src/Catridge.c:158:6:LoadSelectedCatrirdge	0	static

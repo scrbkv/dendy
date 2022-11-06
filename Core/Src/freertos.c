@@ -144,8 +144,8 @@ void Start_Default_Task(void *argument)
   		  HAL_Delay(100);
   	  }
 
-  	  BUS_controller[0] = 0;
-  	  BUS_controller[1] = 0;
+  	  BUS_controller[0] = 0xFF;
+  	  BUS_controller[1] = 0xFF;
 
   while (1) {
 	  if(BUS_dma_transfer) {

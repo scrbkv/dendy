@@ -1,0 +1,14 @@
+../NES/Src/PPU.c:139:6:PPU_reset	4	static
+../NES/Src/PPU.c:159:6:loadBackgroundShifters	4	static
+../NES/Src/PPU.c:166:6:updateShifters	4	static
+../NES/Src/PPU.c:186:6:render	56	static
+../NES/Src/PPU.c:249:6:incrementalScrollX	0	static
+../NES/Src/PPU.c:260:6:incrementalScrollY	0	static
+../NES/Src/PPU.c:278:6:transferAddressX	0	static
+../NES/Src/PPU.c:285:6:transferAddressY	0	static
+../NES/Src/PPU.c:294:9:bitswap	0	static
+../NES/Src/PPU.c:302:6:PPU_clock	40	static
+../NES/Src/PPU.c:449:9:PPU_read	0	static
+../NES/Src/PPU.c:469:6:PPU_write	0	static
+../NES/Src/PPU.c:484:9:PPU_cpuRead	8	static
+../NES/Src/PPU.c:519:6:PPU_cpuWrite	4	static

@@ -1,0 +1,13 @@
+../Core/Src/w25qxx_qspi.c:218:17:QSPI_WriteEnable.constprop	88	static
+../Core/Src/w25qxx_qspi.c:46:9:w25qxx_ReadSR.constprop	72	static
+../Core/Src/w25qxx_qspi.c:26:10:w25qxx_GetID	72	static
+../Core/Src/w25qxx_qspi.c:46:9:w25qxx_ReadSR	80	static
+../Core/Src/w25qxx_qspi.c:16:6:w25qxx_Init	72	static
+../Core/Src/w25qxx_qspi.c:61:9:w25qxx_WriteSR	80	static
+../Core/Src/w25qxx_qspi.c:71:9:w25qxx_ReadAllStatusReg	72	static
+../Core/Src/w25qxx_qspi.c:81:6:W25QXX_Wait_Busy	96	static
+../Core/Src/w25qxx_qspi.c:87:9:w25qxx_SetReadParameters	72	static
+../Core/Src/w25qxx_qspi.c:99:9:w25qxx_EnterQPI	88	static
+../Core/Src/w25qxx_qspi.c:111:9:W25qxx_WriteEnable	88	static
+../Core/Src/w25qxx_qspi.c:339:9:Flash_4k_Read	72	static
+../Core/Src/w25qxx_qspi.c:383:9:Flash_4k_Write	120	static

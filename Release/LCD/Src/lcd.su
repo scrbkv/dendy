@@ -1,0 +1,17 @@
+../LCD/Src/lcd.c:415:6:Putchar26x48.part.0	72	static
+../LCD/Src/lcd.c:380:6:Putchar18x32.part.0	56	static
+../LCD/Src/lcd.c:345:6:Putchar14x24.part.0	64	static
+../LCD/Src/lcd.c:7:6:Init	40	static
+../LCD/Src/lcd.c:208:6:LcdInit	8	static
+../LCD/Src/lcd.c:219:6:DrawPixel	8	static
+../LCD/Src/lcd.c:239:6:FillScreen	12	static
+../LCD/Src/lcd.c:260:6:SetWindow	12	static
+../LCD/Src/lcd.c:276:6:ClearScreen	8	static
+../LCD/Src/lcd.c:307:6:Putchar8x16	112	static
+../LCD/Src/lcd.c:345:6:Putchar14x24	0	static
+../LCD/Src/lcd.c:380:6:Putchar18x32	0	static
+../LCD/Src/lcd.c:415:6:Putchar26x48	0	static
+../LCD/Src/lcd.c:451:6:Puts8x16	32	static
+../LCD/Src/lcd.c:482:6:Puts14x24	24	static
+../LCD/Src/lcd.c:513:6:Puts18x32	24	static
+../LCD/Src/lcd.c:547:6:Puts26x48	24	static
