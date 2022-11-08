@@ -3,346 +3,410 @@
 //
 
 #include "CPU.h"
-#include <time.h>
 
-CPU::CPU(BUS &bus) : bus(bus) {
 
-    using a = CPU;
-    lookup =
-            {
-                    {"BRK", &a::BRK, &a::IMP, 7},
-                    {"ORA", &a::ORA, &a::IZX, 6},
-                    {"KIL", &a::XXX, &a::IMP, 2},
-                    {"SLO", &a::XXX, &a::IZX, 8},
-                    {"NOP", &a::NOP, &a::ZP0, 3},
-                    {"ORA", &a::ORA, &a::ZP0, 3},
-                    {"ASL", &a::ASL, &a::ZP0, 5},
-                    {"SLO", &a::XXX, &a::ZP0, 5},
+enum FLAGS {
+	C = (1 << 0),	// Carry Bit
+	Z = (1 << 1),	// Zero
+	I = (1 << 2),	// Disable Interrupts
+	D = (1 << 3),	// Decimal Mode (unused in this implementation)
+	B = (1 << 4),	// Break
+	U = (1 << 5),	// Unused
+	V = (1 << 6),	// Overflow
+	N = (1 << 7),	// Negative
+};
 
-                    {"PHP", &a::PHP, &a::IMP, 3},
-                    {"ORA", &a::ORA, &a::IMM, 2},
-                    {"ASL", &a::ASL, &a::IMP, 2},
-                    {"ANC", &a::XXX, &a::IMM, 2},
-                    {"NOP", &a::NOP, &a::ABS, 4},
-                    {"ORA", &a::ORA, &a::ABS, 4},
-                    {"ASL", &a::ASL, &a::ABS, 6},
-                    {"SLO", &a::XXX, &a::ABS, 6},
 
-                    {"BPL", &a::BPL, &a::REL, 2},
-                    {"ORA", &a::ORA, &a::IZY, 5},
-                    {"KIL", &a::XXX, &a::IMP, 2},
-                    {"SLO", &a::XXX, &a::IZY, 8},
-                    {"NOP", &a::NOP, &a::ZPX, 4},
-                    {"ORA", &a::ORA, &a::ZPX, 4},
-                    {"ASL", &a::ASL, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+static uint8_t read(uint16_t addr);
+static void write(uint16_t addr, uint8_t src);
 
-                    {"CLC", &a::CLC, &a::IMP, 2},
-                    {"ORA", &a::ORA, &a::ABY, 4},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"ORA", &a::ORA, &a::ABX, 4},
-                    {"ASL", &a::ASL, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+static uint8_t getFlag(uint8_t p);
+static void setFlag(uint8_t p, uint16_t a);
 
-                    {"JSR", &a::JSR, &a::ABS, 6},
-                    {"AND", &a::AND, &a::IZX, 6},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"BIT", &a::BIT, &a::ZP0, 3},
-                    {"AND", &a::AND, &a::ZP0, 3},
-                    {"ROL", &a::ROL, &a::ZP0, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
+static int cycle;
 
-                    {"PLP", &a::PLP, &a::IMP, 4},
-                    {"AND", &a::AND, &a::IMM, 2},
-                    {"ROL", &a::ROL, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"BIT", &a::BIT, &a::ABS, 4},
-                    {"AND", &a::AND, &a::ABS, 4},
-                    {"ROL", &a::ROL, &a::ABS, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+static uint8_t opcode;
+static uint8_t fetched;
+static uint16_t addr_abs;
+static uint16_t addr_rel;
 
-                    {"BMI", &a::BMI, &a::REL, 2},
-                    {"AND", &a::AND, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"AND", &a::AND, &a::ZPX, 4},
-                    {"ROL", &a::ROL, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+static void fetch();
 
-                    {"SEC", &a::SEC, &a::IMP, 2},
-                    {"AND", &a::AND, &a::ABY, 4},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"AND", &a::AND, &a::ABX, 4},
-                    {"ROL", &a::ROL, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+static uint8_t a;
+static uint8_t y;
+static uint8_t x;
+static uint16_t pc;
+static uint8_t status;
+static uint8_t s;
 
-                    {"RTI", &a::RTI, &a::IMP, 6},
-                    {"EOR", &a::EOR, &a::IZX, 6},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 3},
-                    {"EOR", &a::EOR, &a::ZP0, 3},
-                    {"LSR", &a::LSR, &a::ZP0, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
+uint8_t IMP();	uint8_t IMM();
+uint8_t ZP0();	uint8_t ZPX();
+uint8_t ZPY();	uint8_t REL();
+uint8_t ABS();	uint8_t ABX();
+uint8_t ABY();	uint8_t IND();
+uint8_t IZX();	uint8_t IZY();
 
-                    {"PHA", &a::PHA, &a::IMP, 3},
-                    {"EOR", &a::EOR, &a::IMM, 2},
-                    {"LSR", &a::LSR, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"JMP", &a::JMP, &a::ABS, 3},
-                    {"EOR", &a::EOR, &a::ABS, 4},
-                    {"LSR", &a::LSR, &a::ABS, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
 
-                    {"BVC", &a::BVC, &a::REL, 2},
-                    {"EOR", &a::EOR, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"EOR", &a::EOR, &a::ZPX, 4},
-                    {"LSR", &a::LSR, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+uint8_t ADC();	uint8_t AND();	uint8_t ASL();	uint8_t BCC();
+uint8_t BCS();	uint8_t BEQ();	uint8_t BIT();	uint8_t BMI();
+uint8_t BNE();	uint8_t BPL();	uint8_t BRK();	uint8_t BVC();
+uint8_t BVS();	uint8_t CLC();	uint8_t CLD();	uint8_t CLI();
+uint8_t CLV();	uint8_t CMP();	uint8_t CPX();	uint8_t CPY();
+uint8_t DEC();	uint8_t DEX();	uint8_t DEY();	uint8_t EOR();
+uint8_t INC();	uint8_t INX();	uint8_t INY();	uint8_t JMP();
+uint8_t JSR();	uint8_t LDA();	uint8_t LDX();	uint8_t LDY();
+uint8_t LSR();	uint8_t NOP();	uint8_t ORA();	uint8_t PHA();
+uint8_t PHP();	uint8_t PLA();	uint8_t PLP();	uint8_t ROL();
+uint8_t ROR();	uint8_t RTI();	uint8_t RTS();	uint8_t SBC();
+uint8_t SEC();	uint8_t SED();	uint8_t SEI();	uint8_t STA();
+uint8_t STX();	uint8_t STY();	uint8_t TAX();	uint8_t TAY();
+uint8_t TSX();	uint8_t TXA();	uint8_t TXS();	uint8_t TYA();
 
-                    {"CLI", &a::CLI, &a::IMP, 2},
-                    {"EOR", &a::EOR, &a::ABY, 4},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"EOR", &a::EOR, &a::ABX, 4},
-                    {"LSR", &a::LSR, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+uint8_t XXX();
 
-                    {"RTS", &a::RTS, &a::IMP, 6},
-                    {"ADC", &a::ADC, &a::IZX, 6},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 3},
-                    {"ADC", &a::ADC, &a::ZP0, 3},
-                    {"ROR", &a::ROR, &a::ZP0, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
 
-                    {"PLA", &a::PLA, &a::IMP, 4},
-                    {"ADC", &a::ADC, &a::IMM, 2},
-                    {"ROR", &a::ROR, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"JMP", &a::JMP, &a::IND, 5},
-                    {"ADC", &a::ADC, &a::ABS, 4},
-                    {"ROR", &a::ROR, &a::ABS, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
 
-                    {"BVS", &a::BVS, &a::REL, 2},
-                    {"ADC", &a::ADC, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"ADC", &a::ADC, &a::ZPX, 4},
-                    {"ROR", &a::ROR, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+typedef struct
+{
+	uint8_t     (*operate )(void);
+	uint8_t     (*addrmode)(void);
+	uint8_t     cycles;
+} INSTRUCTION;
 
-                    {"SEI", &a::SEI, &a::IMP, 2},
-                    {"ADC", &a::ADC, &a::ABY, 4},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"ADC", &a::ADC, &a::ABX, 4},
-                    {"ROR", &a::ROR, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+uint8_t ram[0xFFFF + 1];
 
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"STA", &a::STA, &a::IZX, 6},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 6},
-                    {"STY", &a::STY, &a::ZP0, 3},
-                    {"STA", &a::STA, &a::ZP0, 3},
-                    {"STX", &a::STX, &a::ZP0, 3},
-                    {"???", &a::XXX, &a::IMP, 3},
+INSTRUCTION lookup[256] = {
+                    {BRK, IMP, 7},
+                    {ORA, IZX, 6},
+                    {XXX, IMP, 2},
+                    {XXX, IZX, 8},
+                    {NOP, ZP0, 3},
+                    {ORA, ZP0, 3},
+                    {ASL, ZP0, 5},
+                    {XXX, ZP0, 5},
 
-                    {"DEY", &a::DEY, &a::IMP, 2},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"TXA", &a::TXA, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"STY", &a::STY, &a::ABS, 4},
-                    {"STA", &a::STA, &a::ABS, 4},
-                    {"STX", &a::STX, &a::ABS, 4},
-                    {"???", &a::XXX, &a::IMP, 4},
+                    {PHP, IMP, 3},
+                    {ORA, IMM, 2},
+                    { ASL, IMP, 2},
+                    { XXX, IMM, 2},
+                    { NOP, ABS, 4},
+                    { ORA, ABS, 4},
+                    { ASL, ABS, 6},
+                    {XXX, ABS, 6},
 
-                    {"BCC", &a::BCC, &a::REL, 2},
-                    {"STA", &a::STA, &a::IZY, 6},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 6},
-                    {"STY", &a::STY, &a::ZPX, 4},
-                    {"STA", &a::STA, &a::ZPX, 4},
-                    {"STX", &a::STX, &a::ZPY, 4},
-                    {"???", &a::XXX, &a::IMP, 4},
+                    {BPL, REL, 2},
+                    {ORA, IZY, 5},
+                    {XXX, IMP, 2},
+                    {XXX, IZY, 8},
+                    {NOP, ZPX, 4},
+                    {ORA, ZPX, 4},
+                    {ASL, ZPX, 6},
+                    {XXX, IMP, 6},
 
-                    {"TYA", &a::TYA, &a::IMP, 2},
-                    {"STA", &a::STA, &a::ABY, 5},
-                    {"TXS", &a::TXS, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 5},
-                    {"???", &a::NOP, &a::IMP, 5},
-                    {"STA", &a::STA, &a::ABX, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
+                    {CLC, IMP, 2},
+                    {ORA, ABY, 4},
+                    { NOP, IMP, 2},
+                    {XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { ORA, ABX, 4},
+                    { ASL, ABX, 7},
+                    { XXX, IMP, 7},
 
-                    {"LDY", &a::LDY, &a::IMM, 2},
-                    {"LDA", &a::LDA, &a::IZX, 6},
-                    {"LDX", &a::LDX, &a::IMM, 2},
-                    {"???", &a::XXX, &a::IMP, 6},
-                    {"LDY", &a::LDY, &a::ZP0, 3},
-                    {"LDA", &a::LDA, &a::ZP0, 3},
-                    {"LDX", &a::LDX, &a::ZP0, 3},
-                    {"???", &a::XXX, &a::IMP, 3},
+                    { JSR, ABS, 6},
+                    { AND, IZX, 6},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { BIT, ZP0, 3},
+                    { AND, ZP0, 3},
+                    { ROL, ZP0, 5},
+                    { XXX, IMP, 5},
 
-                    {"TAY", &a::TAY, &a::IMP, 2},
-                    {"LDA", &a::LDA, &a::IMM, 2},
-                    {"TAX", &a::TAX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"LDY", &a::LDY, &a::ABS, 4},
-                    {"LDA", &a::LDA, &a::ABS, 4},
-                    {"LDX", &a::LDX, &a::ABS, 4},
-                    {"???", &a::XXX, &a::IMP, 4},
+                    { PLP, IMP, 4},
+                    { AND, IMM, 2},
+                    { ROL, IMP, 2},
+                    { XXX, IMP, 2},
+                    { BIT, ABS, 4},
+                    { AND, ABS, 4},
+                    { ROL, ABS, 6},
+                    { XXX, IMP, 6},
 
-                    {"BCS", &a::BCS, &a::REL, 2},
-                    {"LDA", &a::LDA, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 5},
-                    {"LDY", &a::LDY, &a::ZPX, 4},
-                    {"LDA", &a::LDA, &a::ZPX, 4},
-                    {"LDX", &a::LDX, &a::ZPY, 4},
-                    {"???", &a::XXX, &a::IMP, 4},
+                    { BMI, REL, 2},
+                    { AND, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 4},
+                    { AND, ZPX, 4},
+                    {ROL, ZPX, 6},
+                    { XXX, IMP, 6},
 
-                    {"CLV", &a::CLV, &a::IMP, 2},
-                    {"LDA", &a::LDA, &a::ABY, 4},
-                    {"TSX", &a::TSX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 4},
-                    {"LDY", &a::LDY, &a::ABX, 4},
-                    {"LDA", &a::LDA, &a::ABX, 4},
-                    {"LDX", &a::LDX, &a::ABY, 4},
-                    {"???", &a::XXX, &a::IMP, 4},
+                    { SEC, IMP, 2},
+                    { AND, ABY, 4},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { AND, ABX, 4},
+                    { ROL, ABX, 7},
+                    { XXX, IMP, 7},
 
-                    {"CPY", &a::CPY, &a::IMM, 2},
-                    {"CMP", &a::CMP, &a::IZX, 6},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"CPY", &a::CPY, &a::ZP0, 3},
-                    {"CMP", &a::CMP, &a::ZP0, 3},
-                    {"DEC", &a::DEC, &a::ZP0, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
+                    { RTI, IMP, 6},
+                    { EOR, IZX, 6},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 3},
+                    { EOR, ZP0, 3},
+                    { LSR, ZP0, 5},
+                    { XXX, IMP, 5},
 
-                    {"INY", &a::INY, &a::IMP, 2},
-                    {"CMP", &a::CMP, &a::IMM, 2},
-                    {"DEX", &a::DEX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"CPY", &a::CPY, &a::ABS, 4},
-                    {"CMP", &a::CMP, &a::ABS, 4},
-                    {"DEC", &a::DEC, &a::ABS, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+                    { PHA, IMP, 3},
+                    { EOR, IMM, 2},
+                    { LSR, IMP, 2},
+                    { XXX, IMP, 2},
+                    { JMP, ABS, 3},
+                    { EOR, ABS, 4},
+                    { LSR, ABS, 6},
+                    { XXX, IMP, 6},
 
-                    {"BNE", &a::BNE, &a::REL, 2},
-                    {"CMP", &a::CMP, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"CMP", &a::CMP, &a::ZPX, 4},
-                    {"DEC", &a::DEC, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+                    { BVC, REL, 2},
+                    { EOR, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 4},
+                    { EOR, ZPX, 4},
+                    { LSR, ZPX, 6},
+                    { XXX, IMP, 6},
 
-                    {"CLD", &a::CLD, &a::IMP, 2},
-                    {"CMP", &a::CMP, &a::ABY, 4},
-                    {"NOP", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"CMP", &a::CMP, &a::ABX, 4},
-                    {"DEC", &a::DEC, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+                    { CLI, IMP, 2},
+                    { EOR, ABY, 4},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { EOR, ABX, 4},
+                    {LSR, ABX, 7},
+                    { XXX, IMP, 7},
 
-                    {"CPX", &a::CPX, &a::IMM, 2},
-                    {"SBC", &a::SBC, &a::IZX, 6},
-                    {"???", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"CPX", &a::CPX, &a::ZP0, 3},
-                    {"SBC", &a::SBC, &a::ZP0, 3},
-                    {"INC", &a::INC, &a::ZP0, 5},
-                    {"???", &a::XXX, &a::IMP, 5},
+                    { RTS, IMP, 6},
+                    { ADC, IZX, 6},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 3},
+                    { ADC, ZP0, 3},
+                    { ROR, ZP0, 5},
+                    { XXX, IMP, 5},
 
-                    {"INX", &a::INX, &a::IMP, 2},
-                    {"SBC", &a::SBC, &a::IMM, 2},
-                    {"NOP", &a::NOP, &a::IMP, 2},
-                    {"???", &a::SBC, &a::IMP, 2},
-                    {"CPX", &a::CPX, &a::ABS, 4},
-                    {"SBC", &a::SBC, &a::ABS, 4},
-                    {"INC", &a::INC, &a::ABS, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+                    { PLA, IMP, 4},
+                    { ADC, IMM, 2},
+                    { ROR, IMP, 2},
+                    { XXX, IMP, 2},
+                    { JMP, IND, 5},
+                    { ADC, ABS, 4},
+                    { ROR, ABS, 6},
+                    { XXX, IMP, 6},
 
-                    {"BEQ", &a::BEQ, &a::REL, 2},
-                    {"SBC", &a::SBC, &a::IZY, 5},
-                    {"???", &a::XXX, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 8},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"SBC", &a::SBC, &a::ZPX, 4},
-                    {"INC", &a::INC, &a::ZPX, 6},
-                    {"???", &a::XXX, &a::IMP, 6},
+                    { BVS, REL, 2},
+                    { ADC, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 4},
+                    { ADC, ZPX, 4},
+                    { ROR, ZPX, 6},
+                    { XXX, IMP, 6},
 
-                    {"SED", &a::SED, &a::IMP, 2},
-                    {"SBC", &a::SBC, &a::ABY, 4},
-                    {"NOP", &a::NOP, &a::IMP, 2},
-                    {"???", &a::XXX, &a::IMP, 7},
-                    {"???", &a::NOP, &a::IMP, 4},
-                    {"SBC", &a::SBC, &a::ABX, 4},
-                    {"INC", &a::INC, &a::ABX, 7},
-                    {"???", &a::XXX, &a::IMP, 7},
+                    {SEI, IMP, 2},
+                    { ADC, ABY, 4},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { ADC, ABX, 4},
+                    { ROR, ABX, 7},
+                    { XXX, IMP, 7},
+
+                    { NOP, IMP, 2},
+                    { STA, IZX, 6},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 6},
+                    { STY, ZP0, 3},
+                    { STA, ZP0, 3},
+                    { STX, ZP0, 3},
+                    { XXX, IMP, 3},
+
+                    { DEY, IMP, 2},
+                    { NOP, IMP, 2},
+                    { TXA, IMP, 2},
+                    { XXX, IMP, 2},
+                    { STY, ABS, 4},
+                    { STA, ABS, 4},
+                    { STX, ABS, 4},
+                    { XXX, IMP, 4},
+
+                    { BCC, REL, 2},
+                    { STA, IZY, 6},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 6},
+                    { STY, ZPX, 4},
+                    { STA, ZPX, 4},
+                    { STX, ZPY, 4},
+                    { XXX, IMP, 4},
+
+                    { TYA, IMP, 2},
+                    { STA, ABY, 5},
+                    { TXS, IMP, 2},
+                    { XXX, IMP, 5},
+                    { NOP, IMP, 5},
+                    { STA, ABX, 5},
+                    { XXX, IMP, 5},
+                    { XXX, IMP, 5},
+
+                    { LDY, IMM, 2},
+                    { LDA, IZX, 6},
+                    { LDX, IMM, 2},
+                    { XXX, IMP, 6},
+                    { LDY, ZP0, 3},
+                    { LDA, ZP0, 3},
+                    { LDX, ZP0, 3},
+                    { XXX, IMP, 3},
+
+                    { TAY, IMP, 2},
+                    { LDA, IMM, 2},
+                    { TAX, IMP, 2},
+                    { XXX, IMP, 2},
+                    { LDY, ABS, 4},
+                    { LDA, ABS, 4},
+                    { LDX, ABS, 4},
+                    { XXX, IMP, 4},
+
+                    { BCS, REL, 2},
+                    { LDA, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 5},
+                    { LDY, ZPX, 4},
+                    { LDA, ZPX, 4},
+                    { LDX, ZPY, 4},
+                    { XXX, IMP, 4},
+
+                    { CLV, IMP, 2},
+                    { LDA, ABY, 4},
+                    { TSX, IMP, 2},
+                    { XXX, IMP, 4},
+                    { LDY, ABX, 4},
+                    { LDA, ABX, 4},
+                    { LDX, ABY, 4},
+                    { XXX, IMP, 4},
+
+                    { CPY, IMM, 2},
+                    { CMP, IZX, 6},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 8},
+                    { CPY, ZP0, 3},
+                    { CMP, ZP0, 3},
+                    { DEC, ZP0, 5},
+                    { XXX, IMP, 5},
+
+                    { INY, IMP, 2},
+                    { CMP, IMM, 2},
+                    { DEX, IMP, 2},
+                    { XXX, IMP, 2},
+                    { CPY, ABS, 4},
+                    { CMP, ABS, 4},
+                    { DEC, ABS, 6},
+                    { XXX, IMP, 6},
+
+                    { BNE, REL, 2},
+                    { CMP, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 4},
+                    { CMP, ZPX, 4},
+                    { DEC, ZPX, 6},
+                    { XXX, IMP, 6},
+
+                    { CLD, IMP, 2},
+                    { CMP, ABY, 4},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { CMP, ABX, 4},
+                    { DEC, ABX, 7},
+                    { XXX, IMP, 7},
+
+                    { CPX, IMM, 2},
+                    { SBC, IZX, 6},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 8},
+                    { CPX, ZP0, 3},
+                    { SBC, ZP0, 3},
+                    { INC, ZP0, 5},
+                    { XXX, IMP, 5},
+
+                    { INX, IMP, 2},
+                    { SBC, IMM, 2},
+                    { NOP, IMP, 2},
+                    { SBC, IMP, 2},
+                    { CPX, ABS, 4},
+                    { SBC, ABS, 4},
+                    { INC, ABS, 6},
+                    { XXX, IMP, 6},
+
+                    { BEQ, REL, 2},
+                    { SBC, IZY, 5},
+                    { XXX, IMP, 2},
+                    { XXX, IMP, 8},
+                    { NOP, IMP, 4},
+                    { SBC, ZPX, 4},
+                    { INC, ZPX, 6},
+                    { XXX, IMP, 6},
+
+                    { SED, IMP, 2},
+                    { SBC, ABY, 4},
+                    { NOP, IMP, 2},
+                    { XXX, IMP, 7},
+                    { NOP, IMP, 4},
+                    { SBC, ABX, 4},
+                    { INC, ABX, 7},
+                    { XXX, IMP, 7},
             };
 
-}
 
-
-uint8_t CPU::IMP() {
+uint8_t IMP() {
     fetched = a;
     return 0;
 }
 
-uint8_t CPU::IMM() {
+uint8_t IMM() {
     addr_abs = pc;
     pc++;
     return 0;
 }
 
-uint8_t CPU::ZP0() {
+uint8_t ZP0() {
     addr_abs = read(pc);
     pc++;
     addr_abs &= 0x00FF;
     return 0;
 }
 
-uint8_t CPU::ZPX() {
+uint8_t ZPX() {
     addr_abs = read(pc) + x;
     pc++;
     addr_abs &= 0x00FF;
     return 0;
 }
 
-uint8_t CPU::ZPY() {
+uint8_t ZPY() {
     addr_abs = read(pc) + y;
     pc++;
     addr_abs &= 0x00FF;
     return 0;
 }
 
-uint8_t CPU::REL() {
+uint8_t REL() {
     uint8_t tmp = read(pc);
     pc++;
-    addr_rel = uint16_t(int8_t(tmp));
+    addr_rel = (uint16_t)((int8_t)(tmp));
 
     return 0;
 }
 
-uint8_t CPU::ABS() {
+uint8_t ABS() {
 
     uint16_t lo = read(pc);
     pc++;
@@ -354,27 +418,27 @@ uint8_t CPU::ABS() {
     return 0;
 }
 
-uint8_t CPU::ABX() {
+uint8_t ABX() {
     uint16_t lo = read(pc);
     pc++;
     uint16_t hi = read(pc);
     pc++;
     addr_abs = (hi << 8) | lo;
-    addr_abs += uint16_t(x);
+    addr_abs += (uint16_t)(x);
     return 0;
 }
 
-uint8_t CPU::ABY() {
+uint8_t ABY() {
     uint16_t lo = read(pc);
     pc++;
     uint16_t hi = read(pc);
     pc++;
     addr_abs = (hi << 8) | lo;
-    addr_abs += uint16_t(y);
+    addr_abs += (uint16_t)(y);
     return 0;
 }
 
-uint8_t CPU::IND() {
+uint8_t IND() {
     uint16_t ptr_lo = read(pc);
     pc++;
     uint16_t ptr_hi = read(pc);
@@ -388,13 +452,13 @@ uint8_t CPU::IND() {
     }
     else // Behave normally
     {
-        addr_abs = (uint16_t(read(ptr + 1))<< 8) | read(ptr + 0);
+        addr_abs = ((uint16_t)(read(ptr + 1))<< 8) | read(ptr + 0);
     }
 
     return 0;
 }
 
-uint8_t CPU::IZX() {
+uint8_t IZX() {
     uint16_t t = read(pc);
     pc++;
 
@@ -405,7 +469,7 @@ uint8_t CPU::IZX() {
     return 0;
 }
 
-uint8_t CPU::IZY() {
+uint8_t IZY() {
     uint16_t t = read(pc);
     pc++;
 
@@ -418,9 +482,9 @@ uint8_t CPU::IZY() {
 }
 
 
-uint8_t CPU::ADC() {
+uint8_t ADC() {
     fetch();
-    uint16_t tmp = uint16_t(a) + uint16_t(fetched) + uint16_t(getFlag(C));
+    uint16_t tmp = (uint16_t)(a) + (uint16_t)(fetched) + (uint16_t)(getFlag(C));
 
     setFlag(C, tmp & 0x0100);
     setFlag(Z, (tmp & 0x00FF) == 0);
@@ -432,7 +496,7 @@ uint8_t CPU::ADC() {
     return 0;
 }
 
-uint8_t CPU::AND() {
+uint8_t AND() {
     fetch();
     a = a & fetched;
 
@@ -442,7 +506,7 @@ uint8_t CPU::AND() {
     return 0;
 }
 
-uint8_t CPU::ASL() {
+uint8_t ASL() {
     fetch();
 
     uint16_t tmp = (uint16_t) a << 1;
@@ -451,14 +515,14 @@ uint8_t CPU::ASL() {
     setFlag(Z, (tmp & 0x00FF) == 0);
     setFlag(N, tmp & 0x0080);
 
-    if (lookup[opcode].addrmode == &CPU::IMP)
+    if (lookup[opcode].addrmode == &IMP)
         a = tmp & 0x00FF;
     else
         write(addr_abs, tmp & 0x00FF);
     return 0;
 }
 
-uint8_t CPU::BCS() {
+uint8_t BCS() {
     if (getFlag(C)) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -472,7 +536,7 @@ uint8_t CPU::BCS() {
     return 0;
 }
 
-uint8_t CPU::BEQ() {
+uint8_t BEQ() {
     if (getFlag(Z)) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -485,7 +549,7 @@ uint8_t CPU::BEQ() {
     return 0;
 }
 
-uint8_t CPU::BIT() {
+uint8_t BIT() {
     fetch();
     uint8_t tmp = a & fetched;
     setFlag(Z, tmp == 0);
@@ -496,7 +560,7 @@ uint8_t CPU::BIT() {
     return 0;
 }
 
-uint8_t CPU::BMI() {
+uint8_t BMI() {
     if (getFlag(N)) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -508,7 +572,7 @@ uint8_t CPU::BMI() {
     return 0;
 }
 
-uint8_t CPU::BNE() {
+uint8_t BNE() {
     if (getFlag(Z) == 0) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -521,7 +585,7 @@ uint8_t CPU::BNE() {
     return 0;
 }
 
-uint8_t CPU::BPL() {
+uint8_t BPL() {
     if (getFlag(N) == 0) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -533,7 +597,7 @@ uint8_t CPU::BPL() {
     return 0;
 }
 
-uint8_t CPU::BRK() {
+uint8_t BRK() {
     pc++;
     setFlag(I, 1);
 
@@ -548,11 +612,11 @@ uint8_t CPU::BRK() {
 
     uint8_t al = read(0xFFFE);
     uint8_t ah = read(0xFFFF);
-    pc = (uint16_t(ah) << 8) | uint16_t(al);
+    pc = ((uint16_t)(ah) << 8) | (uint16_t)(al);
     return 0;
 }
 
-uint8_t CPU::BVC() {
+uint8_t BVC() {
     if (getFlag(V) == 0) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -561,7 +625,7 @@ uint8_t CPU::BVC() {
     return 0;
 }
 
-uint8_t CPU::BVS() {
+uint8_t BVS() {
     if (getFlag(V) == 1) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -570,47 +634,47 @@ uint8_t CPU::BVS() {
     return 0;
 }
 
-uint8_t CPU::CLC() {
+uint8_t CLC() {
     setFlag(C, 0);
     return 0;
 }
 
-uint8_t CPU::CLD() {
+uint8_t CLD() {
     setFlag(D, 0);
     return 0;
 }
 
-uint8_t CPU::CLI() {
+uint8_t CLI() {
     setFlag(I, 0);
     return 0;
 }
 
-uint8_t CPU::CLV() {
+uint8_t CLV() {
     setFlag(V, 0);
     return 0;
 }
 
-uint8_t CPU::CMP() {
+uint8_t CMP() {
     fetch();
-    uint16_t tmp = uint16_t(a) - uint16_t(fetched);
+    uint16_t tmp = (uint16_t)(a) - (uint16_t)(fetched);
     setFlag(N, tmp & 0x0080);
     setFlag(Z, (tmp & 0x00FF) == 0);
     setFlag(C, a >= fetched);
     return 0;
 }
 
-uint8_t CPU::CPX() {
+uint8_t CPX() {
     fetch();
-    uint16_t tmp = uint16_t(x) - uint16_t(fetched);
+    uint16_t tmp = (uint16_t)(x) - (uint16_t)(fetched);
     setFlag(N, tmp & 0x0080);
     setFlag(Z, (tmp & 0x00FF) == 0);
     setFlag(C, x >= fetched);
     return 0;
 }
 
-uint8_t CPU::CPY() {
+uint8_t CPY() {
     fetch();
-    uint16_t tmp = uint16_t(y) - uint16_t(fetched);
+    uint16_t tmp = (uint16_t)(y) - (uint16_t)(fetched);
     setFlag(N, tmp & 0x0080);
     setFlag(Z, (tmp & 0x00FF) == 0);
     setFlag(C, y >= fetched);
@@ -618,7 +682,7 @@ uint8_t CPU::CPY() {
     return 0;
 }
 
-uint8_t CPU::DEC() {
+uint8_t DEC() {
     fetch();
     uint8_t tmp = fetched - 1;
     setFlag(N, tmp & 0x80);
@@ -627,7 +691,7 @@ uint8_t CPU::DEC() {
     return 0;
 }
 
-uint8_t CPU::DEX() {
+uint8_t DEX() {
     x--;
     setFlag(N, x & 0x80);
     setFlag(Z, x == 0);
@@ -635,14 +699,14 @@ uint8_t CPU::DEX() {
     return 0;
 }
 
-uint8_t CPU::DEY() {
+uint8_t DEY() {
     y--;
     setFlag(N, y & 0x80);
     setFlag(Z, y == 0);
     return 0;
 }
 
-uint8_t CPU::EOR() {
+uint8_t EOR() {
     fetch();
     a = a ^ fetched;
     setFlag(N, a & 0x80);
@@ -650,7 +714,7 @@ uint8_t CPU::EOR() {
     return 0;
 }
 
-uint8_t CPU::INC() {
+uint8_t INC() {
     fetch();
     uint8_t tmp = fetched + 1;
     setFlag(N, tmp & 0x80);
@@ -659,7 +723,7 @@ uint8_t CPU::INC() {
     return 0;
 }
 
-uint8_t CPU::INX() {
+uint8_t INX() {
     x++;
     setFlag(N, x & 0x80);
     setFlag(Z, x == 0);
@@ -667,19 +731,19 @@ uint8_t CPU::INX() {
     return 0;
 }
 
-uint8_t CPU::INY() {
+uint8_t INY() {
     y++;
     setFlag(N, y & 0x80);
     setFlag(Z, y == 0);
     return 0;
 }
 
-uint8_t CPU::JMP() {
+uint8_t JMP() {
     pc = addr_abs;
     return 0;
 }
 
-uint8_t CPU::JSR() {
+uint8_t JSR() {
     pc--;
 
     write(0x0100 + s, (pc >> 8) & 0x00FF);
@@ -691,7 +755,7 @@ uint8_t CPU::JSR() {
     return 0;
 }
 
-uint8_t CPU::LDA() {
+uint8_t LDA() {
     fetch();
     a = fetched;
     setFlag(N, a & 0x80);
@@ -699,7 +763,7 @@ uint8_t CPU::LDA() {
     return 0;
 }
 
-uint8_t CPU::LDX() {
+uint8_t LDX() {
     //std::cout<< std::hex <<"LDX_address: " << int(addr_abs) << std::endl;
 
     fetch();
@@ -709,7 +773,7 @@ uint8_t CPU::LDX() {
     return 0;
 }
 
-uint8_t CPU::LDY() {
+uint8_t LDY() {
     //std::cout<< std::hex <<"LDY_address: " << int(addr_abs) << std::endl;
 
     fetch();
@@ -719,24 +783,24 @@ uint8_t CPU::LDY() {
     return 0;
 }
 
-uint8_t CPU::LSR() {
+uint8_t LSR() {
     fetch();
     uint8_t tmp = fetched >> 1;
     setFlag(C, fetched & 0x01);
     setFlag(N, tmp & 0x80);
     setFlag(Z, tmp == 0);
-    if (lookup[opcode].addrmode == &CPU::IMP)
+    if (lookup[opcode].addrmode == &IMP)
         a = tmp & 0x00FF;
     else
         write(addr_abs, tmp & 0x00FF);
     return 0;
 }
 
-uint8_t CPU::NOP() {
+uint8_t NOP() {
     return 0;
 }
 
-uint8_t CPU::ORA() {
+uint8_t ORA() {
     fetch();
     a = a | fetched;
 
@@ -745,13 +809,13 @@ uint8_t CPU::ORA() {
     return 0;
 }
 
-uint8_t CPU::PHA() {
+uint8_t PHA() {
     write(0x0100 + s, a);
     s--;
     return 0;
 }
 
-uint8_t CPU::PHP() {
+uint8_t PHP() {
     write(0x0100 + s, status | B | U);
     setFlag(B, 0); //Flag test error with it;
     setFlag(U, 0);
@@ -761,7 +825,7 @@ uint8_t CPU::PHP() {
 }
 
 
-uint8_t CPU::PLA() {
+uint8_t PLA() {
     s++;
     a = read(0x0100 + s);
     setFlag(Z, a == 0x00);
@@ -769,35 +833,35 @@ uint8_t CPU::PLA() {
     return 0;
 }
 
-uint8_t CPU::PLP() {
+uint8_t PLP() {
     s++;
     status = read(0x0100 + s);
     setFlag(U, 1);
     return 0;
 }
 
-uint8_t CPU::ROL() {
+uint8_t ROL() {
     fetch();
     //std::cout << "ROL fetched: " << std::hex << (uint16_t)fetched << std::endl;
-    uint16_t tmp = (uint16_t(fetched) << 1) | uint16_t(getFlag(C));
-    setFlag(FLAGS::C, tmp & 0xFF00);
-    setFlag(FLAGS::N, tmp & 0x0080);
-    setFlag(FLAGS::Z, (tmp & 0x00FF) == 0);
+    uint16_t tmp = ((uint16_t)(fetched) << 1) | (uint16_t)(getFlag(C));
+    setFlag(C, tmp & 0xFF00);
+    setFlag(N, tmp & 0x0080);
+    setFlag(Z, (tmp & 0x00FF) == 0);
 
-    if (lookup[opcode].addrmode == &CPU::IMP)
+    if (lookup[opcode].addrmode == &IMP)
         a = tmp & 0x00FF;
     else
         write(addr_abs, tmp & 0x00FF);
     return 0;
 }
 
-uint8_t CPU::ROR() {
+uint8_t ROR() {
     fetch();
-    uint8_t tmp = (uint8_t(getFlag(FLAGS::C)) << 7) | (fetched >> 1);
+    uint8_t tmp = ((uint8_t)(getFlag(C)) << 7) | (fetched >> 1);
     setFlag(C, fetched & 0x0001);
     setFlag(N, tmp & 0x0080);
     setFlag(Z, (tmp & 0x00FF) == 0);
-    if (lookup[opcode].addrmode == &CPU::IMP)
+    if (lookup[opcode].addrmode == &IMP)
         a = tmp & 0x00FF;
     else
         write(addr_abs, tmp & 0x00FF);
@@ -805,31 +869,31 @@ uint8_t CPU::ROR() {
     return 0;
 }
 
-uint8_t CPU::RTI() {
+uint8_t RTI() {
     s++;
     status = read(0x0100 + s);
     setFlag(I, 1);
     setFlag(B, 1);
 
     s++;
-    pc = uint16_t(read(0x0100 + s));
+    pc = (uint16_t)(read(0x0100 + s));
     s++;
     pc |= read(0x0100 + s) << 8;
 
     return 0;
 }
 
-uint8_t CPU::RTS() {
+uint8_t RTS() {
     s++;
-    pc = uint16_t(read(0x0100 + s));
+    pc = (uint16_t)(read(0x0100 + s));
     s++;
-    pc |= uint16_t(read(0x0100 + s)) << 8;
+    pc |= (uint16_t)(read(0x0100 + s)) << 8;
 
     pc++;
     return 0;
 }
 
-uint8_t CPU::SBC() {
+uint8_t SBC() {
     fetch();
 
     uint16_t value = ((uint16_t) fetched) ^0x00FF;
@@ -846,88 +910,88 @@ uint8_t CPU::SBC() {
     return 0;
 }
 
-uint8_t CPU::SEC() {
-    setFlag(FLAGS::C, 1);
+uint8_t SEC() {
+    setFlag(C, 1);
     return 0;
 }
 
-uint8_t CPU::SED() {
-    setFlag(FLAGS::D, 1);
+uint8_t SED() {
+    setFlag(D, 1);
     return 0;
 }
 
-uint8_t CPU::SEI() {
-    setFlag(FLAGS::I, 1);
+uint8_t SEI() {
+    setFlag(I, 1);
     return 0;
 }
 
-uint8_t CPU::STA() {
+uint8_t STA() {
     //std::cout<< std::hex <<"STA_address: " << int(addr_abs) << std::endl;
     write(addr_abs, a);
     return 0;
 }
 
-uint8_t CPU::STX() {
+uint8_t STX() {
     //std::cout<< std::hex <<"STX_address: " << int(addr_abs) << std::endl;
     write(addr_abs, x);
     return 0;
 }
 
-uint8_t CPU::STY() {
+uint8_t STY() {
     //std::cout<< std::hex <<"STY_address: " << int(addr_abs) << std::endl;
     write(addr_abs, y);
     return 0;
 }
 
-uint8_t CPU::TAX() {
+uint8_t TAX() {
     x = a;
 
-    setFlag(FLAGS::N, x & 0x80);
-    setFlag(FLAGS::Z, x == 0);
+    setFlag(N, x & 0x80);
+    setFlag(Z, x == 0);
     return 0;
 }
 
-uint8_t CPU::TAY() {
+uint8_t TAY() {
     y = a;
 
-    setFlag(FLAGS::N, y & 0x80);
-    setFlag(FLAGS::Z, y == 0);
+    setFlag(N, y & 0x80);
+    setFlag(Z, y == 0);
     return 0;
 }
 
-uint8_t CPU::TSX() {
+uint8_t TSX() {
     x = s;
 
-    setFlag(FLAGS::N, x & 0x80);
-    setFlag(FLAGS::Z, x == 0);
+    setFlag(N, x & 0x80);
+    setFlag(Z, x == 0);
     return 0;
 }
 
-uint8_t CPU::TXA() {
+uint8_t TXA() {
     a = x;
 
-    setFlag(FLAGS::N, a & 0x80);
-    setFlag(FLAGS::Z, a == 0);
+    setFlag(N, a & 0x80);
+    setFlag(Z, a == 0);
     return 0;
 }
 
-uint8_t CPU::TXS() {
+uint8_t TXS() {
     s = x;
 
-    //setFlag(FLAGS::N, s & 0x80);
-    //setFlag(FLAGS::Z, s == 0);
+    //setFlag(N, s & 0x80);
+    //setFlag(Z, s == 0);
     return 0;
 }
 
-uint8_t CPU::TYA() {
+uint8_t TYA() {
     a = y;
 
-    setFlag(FLAGS::N, a & 0x80);
-    setFlag(FLAGS::Z, a == 0);
+    setFlag(N, a & 0x80);
+    setFlag(Z, a == 0);
     return 0;
 }
 
-uint8_t CPU::BCC() {
+uint8_t BCC() {
     if (getFlag(C) == 0) {
         cycle++;
         addr_abs = pc + addr_rel;
@@ -941,31 +1005,30 @@ uint8_t CPU::BCC() {
     return 0;
 }
 
-uint8_t CPU::XXX() {
+uint8_t XXX() {
     return 0;
 }
 
-uint8_t CPU::getFlag(CPU::FLAGS p) {
+static uint8_t getFlag(uint8_t p) {
     return ((status & p) > 0) ? 1 : 0;
 }
 
-void CPU::setFlag(CPU::FLAGS p, bool a) {
+static void setFlag(uint8_t p, uint16_t a) {
     a ? (status |= p) : (status &= ~p);
 }
 
-uint8_t CPU::read(uint16_t addr) {
+static uint8_t read(uint16_t addr) {
 
-    return bus.cpuRead(addr);
+    return BUS_cpuRead(addr);
     //return ram[addr];
 }
 
-void CPU::write(uint16_t addr, uint8_t src) {
-    bus.cpuWrite(addr, src);
+static void write(uint16_t addr, uint8_t src) {
+    BUS_cpuWrite(addr, src);
     //ram[addr] = src;
 }
 
-void CPU::reset() {
-    bus.memlog(0xFFF0);
+void CPU_reset() {
     addr_abs = 0xFFFC;
     uint16_t lo = read(addr_abs + 0);
     uint16_t hi = read(addr_abs + 1);
@@ -987,15 +1050,15 @@ void CPU::reset() {
     cycle = 8;
 }
 
-void CPU::fetch() {
-    if (lookup[opcode].addrmode != &CPU::IMP){
+static void fetch() {
+    if (lookup[opcode].addrmode != &IMP){
         fetched = read(addr_abs);
     }
 
 }
 
 
-void CPU::IRQ() {
+void CPU_IRQ() {
     if (getFlag(I) == 0) {
         write(0x0100 + s, (pc >> 8) & 0x00FF);
         s--;
@@ -1005,7 +1068,7 @@ void CPU::IRQ() {
         s--;
         uint8_t al = read(0xFFFA);
         uint8_t ah = read(0xFFFB);
-        pc = (uint16_t(ah) << 8) | uint16_t(al);
+        pc = ((uint16_t)(ah) << 8) | (uint16_t)(al);
         setFlag(I, 1);
         setFlag(B, 0);
         setFlag(U, 1);
@@ -1014,7 +1077,7 @@ void CPU::IRQ() {
     }
 }
 
-void CPU::NMI() {
+void CPU_NMI() {
     write(0x0100 + s, (pc >> 8) & 0x00FF);
     s--;
     write(0x0100 + s, pc & 0x00FF);
@@ -1023,7 +1086,7 @@ void CPU::NMI() {
     s--;
     uint8_t al = read(0xFFFA);
     uint8_t ah = read(0xFFFB);
-    pc = (uint16_t(ah) << 8) | uint16_t(al);
+    pc = ((uint16_t)(ah) << 8) | (uint16_t)(al);
     setFlag(I, 1);
     setFlag(B, 0);
     setFlag(U, 1);
@@ -1032,46 +1095,17 @@ void CPU::NMI() {
     cycle = 8;
 }
 
-void CPU::clock() {
+void CPU_clock() {
     if (cycle == 0) {
 
         opcode = read(pc);
-        if(pc == 0xDBB5){
-            //debug_flag = true;
-        }
-        if (debug_flag) {
-
-            show_info();
-
-            //debug_flag = false;
-        }
 
         pc++;
 
-        (this->*lookup[opcode].addrmode)();
-        (this->*lookup[opcode].operate)();
+        (*lookup[opcode].addrmode)();
+        (*lookup[opcode].operate)();
         cycle = lookup[opcode].cycles;
-
-        if(debug_flag) {
-            system("pause");
-        }
     }
     cycle--;
-    global_cycle++;
 }
 
-void CPU::show_info() {
-//    bus.memlog(addr_abs);
-//    printf("\n");
-
-    printf("A: %02X X: %02X Y: %02X P: %02X SP: %02X CYC:%d PC %04X\n", a, x, y, status&0xCF, s, global_cycle - 1, pc);
-
-//    printf("Opcode: %02X (%s )\n", opcode, (lookup[opcode].name).c_str());
-//    printf("           NV1BDIZC\n");
-//    printf("cpu_reg P: ");
-//    std::cout << bool(getFlag(N)) << bool(getFlag(V)) << bool(getFlag(U)) << bool(getFlag(B)) << bool(getFlag(D))
-//              << bool(getFlag(I)) << bool(getFlag(Z)) << bool(getFlag(C)) << std::endl;
-
-
-
-}

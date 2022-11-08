@@ -144,24 +144,30 @@ void Start_Default_Task(void *argument)
   		  HAL_Delay(100);
   	  }
 
-  	  BUS_controller[0] = 0xFF;
-  	  BUS_controller[1] = 0xFF;
+  	controller_state[0] = 0xFF;
+  	controller_state[1] = 0xFF;
 
   while (1) {
-	  if(BUS_dma_transfer) {
-		  BUS_dma_clock();
-	  } else {
-		  CPU_clock();
-	  }
+	  CPU_reset();
+	  PPU_reset();
 
-	  PPU_clock();
-	  PPU_clock();
-	  PPU_clock();
+	      while(1) {
+	          if(dma_transfer) {
+	              dma_clock();
+	          } else {
+	              CPU_clock();
+	          }
 
-	  if(nmi) {
-		  nmi = 0;
-		  CPU_NMI();
-	 }
+
+	          PPU_clock();
+	          PPU_clock();
+	          PPU_clock();
+
+	          if(nmi){
+	              nmi = 0;
+	              CPU_NMI();
+	          }
+	      }
   }
 
   /* USER CODE END Start_Default_Task */
