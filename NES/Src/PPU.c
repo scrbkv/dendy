@@ -7,122 +7,6 @@
 #include "cmsis_os2.h"
 
 __IO uint8_t* DATA = (uint8_t*)0xC0080000;
-
-
-static const uint16_t CHR_ROM_OFFSET[] = {0x0000, 0x1000};
-static const uint16_t VRAM_OFFSET = 0x2000;
-static const uint16_t VRAMA_OFFSET = 0x23C0;
-
-uint8_t nmi = 0;
-uint8_t pOAM[256] = {};
-uint8_t sOAM[32];
-
-union
-{
-    struct
-    {
-        uint8_t unused : 5;
-        uint8_t sprite_overflow : 1;
-        uint8_t sprite_zero_hit : 1;
-        uint8_t vertical_blank : 1;
-    };
-
-    uint8_t reg;
-} PPU_status;
-
-void loadBackgroundShifters();
-    void updateShifters();
-
-    void incrementalScrollX();
-    void incrementalScrollY();
-    void transferAddressX();
-    void transferAddressY();
-    void render();
-
-
-    int cycle = 0;
-    int scanline = 0;
-    uint64_t frame = 0;
-
-    uint8_t bg_next_tile_id = 0;
-    uint8_t bg_next_at = 0;
-    uint8_t bg_next_at_tile = 0;
-    uint8_t bg_next_tile_lsb = 0;
-    uint8_t bg_next_tile_msb = 0;
-
-    uint16_t bg_shifter_pattern_lo = 0;
-    uint16_t bg_shifter_patter_hi = 0;
-    uint16_t bg_shifter_at_lo = 0;
-    uint16_t bg_shifter_at_hi = 0;
-
-    uint8_t sprite_count = 0;
-    uint8_t sp_shifter_pattern_lo[8];
-    uint8_t sp_shifter_pattern_hi[8];
-
-    uint8_t spriteZeroHitPosible = 0;
-    uint8_t spriteZeroHitBegin = 0;
-    uint8_t color = 0;
-
-    uint8_t VRAM[0x1000];
-    uint8_t palette[32];
-
-
-    typedef union  {
-        struct {
-            uint16_t coarse_x: 5;
-            uint16_t coarse_y: 5;
-            uint16_t nametable_x: 1;
-            uint16_t nametable_y: 1;
-            uint16_t fine_y: 3;
-            uint16_t unused: 1;
-        };
-        uint16_t reg;
-    } vram_t;
-    vram_t v_vram;
-    vram_t t_vram;
-    uint8_t fine_x;
-
-    uint8_t oam_addr = 0;
-
-
-
-    union
-    {
-        struct
-        {
-            uint8_t grayscale : 1;
-            uint8_t render_background_left : 1;
-            uint8_t render_sprites_left : 1;
-            uint8_t render_background : 1;
-            uint8_t render_sprites : 1;
-            uint8_t enhance_red : 1;
-            uint8_t enhance_green : 1;
-            uint8_t enhance_blue : 1;
-        };
-
-        uint8_t reg;
-    } mask;
-
-    union
-    {
-        struct
-        {
-            uint8_t nametable_x : 1;
-            uint8_t nametable_y : 1;
-            uint8_t increment_mode : 1;
-            uint8_t pattern_sprite : 1;
-            uint8_t pattern_background : 1;
-            uint8_t sprite_size : 1;
-            uint8_t slave_mode : 1; // unused
-            uint8_t enable_nmi : 1;
-        };
-
-        uint8_t reg;
-    } control;
-
-    uint8_t address_latch = 0;
-    uint8_t ppuDataBuffer = 0;
-
 uint16_t ppuColor[64] = {
     		0xAE73, 0xD120, 0x1500, 0x1340, 0x0E88, 0x02A8, 0x00A0, 0x4078,
     		0x6041, 0x2002, 0x8002, 0xE201, 0xEB19, 0x0000, 0x0000, 0x0000,
@@ -135,12 +19,93 @@ uint16_t ppuColor[64] = {
     };
 
 
-void PPU_reset() {
+
+//
+// Created by boris on 17/10/2020.
+//
+
+#include "PPU.h"
+
+PPU::PPU(Catridge &catridge) : catridge(catridge) {
+    ppuColor[0x00] = 0x757575;
+    ppuColor[0x01] = 0x271B8F;
+    ppuColor[0x02] = 0x0000AB;
+    ppuColor[0x03] = 0x47009F;
+    ppuColor[0x04] = 0x8F0077;
+    ppuColor[0x05] = 0xAB0013;
+    ppuColor[0x06] = 0xA70000;
+    ppuColor[0x07] = 0x7F0B00;
+    ppuColor[0x08] = 0x432F00;
+    ppuColor[0x09] = 0x004700;
+    ppuColor[0x0a] = 0x005100;
+    ppuColor[0x0b] = 0x003F17;
+    ppuColor[0x0c] = 0x1B3F5F;
+    ppuColor[0x0d] = 0x000000;
+    ppuColor[0x0e] = 0x000000;
+    ppuColor[0x0f] = 0x000000;
+
+    ppuColor[0x10] = 0xBCBCBC;
+    ppuColor[0x11] = 0x0073EF;
+    ppuColor[0x12] = 0x233BEF;
+    ppuColor[0x13] = 0x8300F3;
+    ppuColor[0x14] = 0xBF00BF;
+    ppuColor[0x15] = 0xE7005B;
+    ppuColor[0x16] = 0xDB2B00;
+    ppuColor[0x17] = 0xCB4F0F;
+    ppuColor[0x18] = 0x8B7300;
+    ppuColor[0x19] = 0x009700;
+    ppuColor[0x1a] = 0x00AB00;
+    ppuColor[0x1b] = 0x00933B;
+    ppuColor[0x1c] = 0x00838B;
+    ppuColor[0x1d] = 0x000000;
+    ppuColor[0x1e] = 0x000000;
+    ppuColor[0x1f] = 0x000000;
+
+    ppuColor[0x20] = 0xFFFFFF;
+    ppuColor[0x21] = 0x3FBFFF;
+    ppuColor[0x22] = 0x5F97FF;
+    ppuColor[0x23] = 0xA78BFD;
+    ppuColor[0x24] = 0xF77BFF;
+    ppuColor[0x25] = 0xFF77B7;
+    ppuColor[0x26] = 0xFF7763;
+    ppuColor[0x27] = 0xFF9B3B;
+    ppuColor[0x28] = 0xF3BF3F;
+    ppuColor[0x29] = 0x83D313;
+    ppuColor[0x2a] = 0x4FDF4B;
+    ppuColor[0x2b] = 0x58F898;
+    ppuColor[0x2c] = 0x00EBDB;
+    ppuColor[0x2d] = 0x000000;
+    ppuColor[0x2e] = 0x000000;
+    ppuColor[0x2f] = 0x000000;
+
+    ppuColor[0x30] = 0xFFFFFF;
+    ppuColor[0x31] = 0xABE7FF;
+    ppuColor[0x32] = 0xC7D7FF;
+    ppuColor[0x33] = 0xD7CBFF;
+    ppuColor[0x34] = 0xFFC7FF;
+    ppuColor[0x35] = 0xFFC7DB;
+    ppuColor[0x36] = 0xFFBFB3;
+    ppuColor[0x37] = 0xFFDBAB;
+    ppuColor[0x38] = 0xFFE7A3;
+    ppuColor[0x39] = 0xE3FFA3;
+    ppuColor[0x3a] = 0xABF3BF;
+    ppuColor[0x3b] = 0xB3FFCF;
+    ppuColor[0x3c] = 0x9FFFF3;
+    ppuColor[0x3d] = 0x000000;
+    ppuColor[0x3e] = 0x000000;
+    ppuColor[0x3f] = 0x000000;
+}
+
+int PPU::getScreenPixel(int x, int y) {
+    return screen[x][y];
+}
+
+void PPU::reset() {
     address_latch = 0;
     cycle = 0;
     scanline = 261;
-    nmi = 0;
-    PPU_status.reg = 0;
+    nmi = false;
+    status.reg = 0;
     mask.reg = 0;
     control.reg = 0;
     v_vram.reg = 0;
@@ -156,14 +121,14 @@ void PPU_reset() {
     oam_addr = 0;
 };
 
-void loadBackgroundShifters() {
+void PPU::loadBackgroundShifters() {
     bg_shifter_pattern_lo = (bg_shifter_pattern_lo & 0xFF00) | bg_next_tile_lsb;
     bg_shifter_patter_hi = (bg_shifter_patter_hi & 0xFF00) | bg_next_tile_msb;
     bg_shifter_at_lo = (bg_shifter_at_lo & 0xFF00) | ((bg_next_at_tile & 0x1) ? 0xFF : 0x00);
     bg_shifter_at_hi = (bg_shifter_at_hi & 0xFF00) | ((bg_next_at_tile & 0x2) ? 0xFF : 0x00);
 }
 
-void updateShifters() {
+void PPU::updateShifters() {
 
     if (mask.render_background) {
         bg_shifter_pattern_lo <<= 1;
@@ -183,7 +148,7 @@ void updateShifters() {
     }
 }
 
-void render() {
+void PPU::render() {
 
     uint8_t bg_color = 0;
     uint8_t fg_color = 0;
@@ -198,11 +163,11 @@ void render() {
         uint8_t p2_pixel = (bg_shifter_at_lo & bit_mux) > 0;
         uint8_t p3_pixel = (bg_shifter_at_hi & bit_mux) > 0;
         bg_zero = p1_pixel | p0_pixel;
-        bg_color = PPU_read(0x3F00 + ((p3_pixel << 3) | (p2_pixel << 2) | (p1_pixel << 1) | (p0_pixel << 0)));
+        bg_color = read(0x3F00 + ((p3_pixel << 3) | (p2_pixel << 2) | (p1_pixel << 1) | (p0_pixel << 0)));
     }
 
     if (mask.render_sprites) {
-        spriteZeroHitBegin = 0;
+        spriteZeroHitBegin = false;
         for (int i = 0; i < sprite_count; i++) {
             if (sOAM[i * 4 + 3] == 0) {
                 uint8_t p0_pixel = (sp_shifter_pattern_lo[i] & 0x80) > 0;
@@ -211,10 +176,10 @@ void render() {
                 fg_priority = (sOAM[i * 4 + 2] & 0x20) == 0;
 
                 fg_zero = p1_pixel | p0_pixel;
-                fg_color = PPU_read(0x3F10 + ((fg_palette << 2) | (p1_pixel << 1) | (p0_pixel << 0)));
+                fg_color = read(0x3F10 + ((fg_palette << 2) | (p1_pixel << 1) | (p0_pixel << 0)));
                 if (fg_zero != 0) {
                     if (i == 0) {
-                        spriteZeroHitBegin = 1;
+                        spriteZeroHitBegin = true;
                     }
                     break;
                 }
@@ -238,7 +203,7 @@ void render() {
         if (spriteZeroHitPosible & spriteZeroHitBegin) {
             if (mask.render_background & mask.render_background) {
                 if ((1 <= cycle && cycle <= 256)) {
-                    PPU_status.sprite_zero_hit = 1;
+                    status.sprite_zero_hit = 1;
                 }
             }
         }
@@ -246,7 +211,7 @@ void render() {
 
 }
 
-void incrementalScrollX() {
+void PPU::incrementalScrollX() {
     if (mask.render_background || mask.render_sprites) {
         if (v_vram.coarse_x == 0x1F) {
             v_vram.coarse_x = 0;
@@ -257,7 +222,7 @@ void incrementalScrollX() {
     }
 }
 
-void incrementalScrollY() {
+void PPU::incrementalScrollY() {
     if (mask.render_background || mask.render_sprites) {
         if (v_vram.fine_y != 0x7) {
             v_vram.fine_y++;
@@ -275,14 +240,14 @@ void incrementalScrollY() {
     }
 }
 
-void transferAddressX() {
+void PPU::transferAddressX() {
     if (mask.render_background || mask.render_sprites) {
         v_vram.coarse_x = t_vram.coarse_x;
         v_vram.nametable_x = t_vram.nametable_x;
     }
 }
 
-void transferAddressY() {
+void PPU::transferAddressY() {
     if (mask.render_background || mask.render_sprites) {
         v_vram.coarse_y = t_vram.coarse_y;
         v_vram.nametable_y = t_vram.nametable_y;
@@ -290,6 +255,33 @@ void transferAddressY() {
     }
 }
 
+void PPU::memlog(uint16_t addr) {
+    printf("$%04X:", addr & 0xFFF0);
+    for (uint16_t i = 0; i < 16; i++) {
+        printf(" %02X", read((addr & 0xFFF0) + i));
+    }
+    printf("\n");
+}
+
+void PPU::poammemlog() {
+    for (uint16_t page = 0; page <= 0x00F0; page += 0x0010) {
+        printf("$%04X:", page);
+        for (uint16_t i = 0; i < 16; i++) {
+            printf(" %02X", pOAM[page + i]);
+        }
+        printf("\n");
+    }
+}
+
+void PPU::soammemlog() {
+    for (uint16_t page = 0; page <= 0x0010; page += 0x0010) {
+        printf("$%04X:", page);
+        for (uint16_t i = 0; i < 16; i++) {
+            printf(" %02X", sOAM[page + i]);
+        }
+        printf("\n");
+    }
+}
 
 uint8_t bitswap(uint8_t b) {
     b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
@@ -298,8 +290,7 @@ uint8_t bitswap(uint8_t b) {
     return b;
 }
 
-
-void PPU_clock() {
+void PPU::clock() {
 
     uint16_t vram_addr = v_vram.reg & 0x0FFF;
 
@@ -310,10 +301,10 @@ void PPU_clock() {
             switch ((cycle - 1) % 8) {
                 case 0:
                     loadBackgroundShifters();
-                    bg_next_tile_id = PPU_read(VRAM_OFFSET | vram_addr);
+                    bg_next_tile_id = read(VRAM_OFFSET | vram_addr);
                     break;
                 case 2:
-                    bg_next_at = PPU_read(
+                    bg_next_at = read(
                             VRAMA_OFFSET | (vram_addr & 0x0C00) | ((vram_addr >> 4) & 0x38) |
                             ((vram_addr >> 2) & 0x7));
 
@@ -322,12 +313,12 @@ void PPU_clock() {
 
                     break;
                 case 4:
-                    bg_next_tile_lsb = PPU_read(
+                    bg_next_tile_lsb = read(
                             CHR_ROM_OFFSET[control.pattern_background] + (bg_next_tile_id << 4) + v_vram.fine_y +
                             0);
                     break;
                 case 6:
-                    bg_next_tile_msb = PPU_read(
+                    bg_next_tile_msb = read(
                             CHR_ROM_OFFSET[control.pattern_background] + (bg_next_tile_id << 4) + v_vram.fine_y +
                             8);
                     break;
@@ -348,7 +339,7 @@ void PPU_clock() {
 
     if ((0 <= scanline && scanline <= 239)) {
         if (cycle == 258) {
-            spriteZeroHitPosible = 0;
+            spriteZeroHitPosible = false;
             sprite_count = 0;
             for (int s = 0; s < 32; s++) {
                 sOAM[s] = 0xFF;
@@ -360,7 +351,7 @@ void PPU_clock() {
 
                     if (sprite_count < 8) {
                         if (n == 0) {
-                            spriteZeroHitPosible = 1;
+                            spriteZeroHitPosible = true;
                         }
                         for (int m = 0; m < 4; m++) {
                             sOAM[s++] = pOAM[4 * n + m];
@@ -369,7 +360,7 @@ void PPU_clock() {
                     sprite_count++;
                 }
             }
-            PPU_status.sprite_overflow = (sprite_count > 8);
+            status.sprite_overflow = (sprite_count > 8);
             sprite_count = (sprite_count > 8) ? 8 : sprite_count;
 
         }
@@ -378,17 +369,17 @@ void PPU_clock() {
                 uint8_t sp_pattern_lo, sp_pattern_hi;
                 uint16_t sp_pattern_addr_lo, sp_pattern_addr_hi;
                 if ((sOAM[i * 4 + 2] & 0x80)) {
-                    sp_pattern_addr_lo = ((uint16_t)(control.pattern_sprite) << 12)
-                                         | ((uint16_t)(sOAM[i * 4 + 1]) << 4)
+                    sp_pattern_addr_lo = (uint16_t(control.pattern_sprite) << 12)
+                                         | (uint16_t(sOAM[i * 4 + 1]) << 4)
                                          | (7 - ((scanline - sOAM[i * 4 + 0]) & 0x07));
                 } else {
-                    sp_pattern_addr_lo = ((uint16_t)(control.pattern_sprite) << 12)
-                                         | ((uint16_t)(sOAM[i * 4 + 1]) << 4)
+                    sp_pattern_addr_lo = (uint16_t(control.pattern_sprite) << 12)
+                                         | (uint16_t(sOAM[i * 4 + 1]) << 4)
                                          | ((scanline - sOAM[i * 4 + 0]) & 0x07);
                 }
                 sp_pattern_addr_hi = sp_pattern_addr_lo + 8;
-                sp_pattern_lo = PPU_read(sp_pattern_addr_lo);
-                sp_pattern_hi = PPU_read(sp_pattern_addr_hi);
+                sp_pattern_lo = read(sp_pattern_addr_lo);
+                sp_pattern_hi = read(sp_pattern_addr_hi);
 
                 if ((sOAM[i * 4 + 2] & 0x40)) {
                     sp_pattern_lo = bitswap(sp_pattern_lo);
@@ -402,25 +393,23 @@ void PPU_clock() {
     if (0 <= scanline && scanline <= 239) {
         if (1 <= cycle && cycle <= 256) {
             render();
-            uint16_t c = ppuColor[color];
-            *DATA = c;
-            *DATA = c >> 8;
+            screen[cycle - 1][scanline] = ppuColor[color];
         }
     }
 
     if (cycle == 1 && scanline == 241) {
-        PPU_status.vertical_blank = 1;
+        status.vertical_blank = 1;
         frame++;
 
         if (control.enable_nmi)
-            nmi = 1;
+            nmi = true;
 
     }
 
     if (cycle == 1 && scanline == 261) {
-        PPU_status.vertical_blank = 0;
-        PPU_status.sprite_overflow = 0;
-        PPU_status.sprite_zero_hit = 0;
+        status.vertical_blank = 0;
+        status.sprite_overflow = 0;
+        status.sprite_zero_hit = 0;
 
         for (int i = 0; i < 8; i++) {
             sp_shifter_pattern_hi[i] = 0;
@@ -446,9 +435,9 @@ void PPU_clock() {
 
 }
 
-uint8_t PPU_read(uint16_t addr) {
+uint8_t PPU::read(uint16_t addr) {
     if (addr >= 0x0000 && addr <= 0x1FFF)
-        return CHR_ROM[addr & 0x1FFF];
+        return catridge.CHR_ROM[addr & 0x1FFF];
     else if (addr >= 0x2000 && addr <= 0x3EFF)
         return VRAM[addr & 0x0FFF];
     else if (addr >= 0x3F00 && addr <= 0x3F1F) {
@@ -462,13 +451,15 @@ uint8_t PPU_read(uint16_t addr) {
             addr = 0x0000;
         }
         return palette[addr];
+    } else {
+        std::cerr << "Addressig Error - 0x" << std::hex << addr << std::endl;
+        exit(-1);
     }
-    return 0;
 }
 
-void PPU_write(uint16_t addr, uint8_t src) {
+void PPU::write(uint16_t addr, uint8_t src) {
     if (addr >= 0x0000 && addr <= 0x1FFF)
-        CHR_ROM[addr & 0x1FFF] = src;
+        catridge.CHR_ROM[addr & 0x1FFF] = src;
     else if (addr >= 0x2000 && addr <= 0x3EFF)
         VRAM[addr & 0x0FFF] = src;
     else if (addr >= 0x3F00 && addr <= 0x3F1F) {
@@ -478,10 +469,13 @@ void PPU_write(uint16_t addr, uint8_t src) {
         if (addr == 0x0018) addr = 0x0008;
         if (addr == 0x001C) addr = 0x000C;
         palette[addr] = src;
+    } else {
+//        std::cerr << "Addressig Error - 0x" << std::hex << addr << std::endl;
+//        exit(-1);
     }
 }
 
-uint8_t PPU_cpuRead(uint16_t addr) {
+uint8_t PPU::cpuRead(uint16_t addr) {
     uint8_t data = 0;
     switch (addr) {
         case 0x0000:
@@ -491,8 +485,8 @@ uint8_t PPU_cpuRead(uint16_t addr) {
             data = mask.reg;
             break;
         case 0x0002:
-            data = PPU_status.reg & 0xE0;
-            PPU_status.vertical_blank = 0;
+            data = status.reg & 0xE0;
+            status.vertical_blank = 0;
             address_latch = 0;
             break;
         case 0x0003:
@@ -507,7 +501,7 @@ uint8_t PPU_cpuRead(uint16_t addr) {
             break;
         case 0x0007:
             data = ppuDataBuffer;
-            ppuDataBuffer = PPU_read(v_vram.reg & 0x3FFF);
+            ppuDataBuffer = read(v_vram.reg & 0x3FFF);
             if (v_vram.reg >= 0x3f00) data = ppuDataBuffer;
             v_vram.reg += (control.increment_mode ? 32 : 1);
             break;
@@ -516,7 +510,7 @@ uint8_t PPU_cpuRead(uint16_t addr) {
     return data;
 }
 
-void PPU_cpuWrite(uint16_t addr, uint8_t src) {
+void PPU::cpuWrite(uint16_t addr, uint8_t src) {
     switch (addr) {
         case 0x0000:
             control.reg = src;
@@ -527,7 +521,7 @@ void PPU_cpuWrite(uint16_t addr, uint8_t src) {
             mask.reg = src;
             break;
         case 0x0002:
-            PPU_status.reg = src;
+            status.reg = src;
             break;
         case 0x0003:
             oam_addr = src;
@@ -549,7 +543,7 @@ void PPU_cpuWrite(uint16_t addr, uint8_t src) {
             break;
         case 0x0006:
             if (address_latch == 0) {
-                t_vram.reg = ((uint16_t)(src & 0x3F) << 8) | (t_vram.reg & 0x00FF);
+                t_vram.reg = (uint16_t(src & 0x3F) << 8) | (t_vram.reg & 0x00FF);
                 address_latch = 1;
             } else {
                 t_vram.reg = (t_vram.reg & 0xFF00) | src;
@@ -559,7 +553,7 @@ void PPU_cpuWrite(uint16_t addr, uint8_t src) {
 
             break;
         case 0x0007:
-            PPU_write(v_vram.reg & 0x3FFF, src);
+            write(v_vram.reg & 0x3FFF, src);
             v_vram.reg += (control.increment_mode ? 32 : 1);
             break;
     }

@@ -54,8 +54,7 @@ Core/Src/freertos.o: ../Core/Src/freertos.c \
  E:/STM32/Workspace/dendy/NES/Inc/PPU.h \
  E:/STM32/Workspace/dendy/NES/Inc/PPU.h \
  E:/STM32/Workspace/dendy/NES/Inc/BUS.h \
- E:/STM32/Workspace/dendy/LCD/Inc/lcd.h ../Core/Inc/spi.h \
- ../Core/Inc/main.h
+ E:/STM32/Workspace/dendy/LCD/Inc/lcd.h
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
 ../Core/Inc/FreeRTOSConfig.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h:
@@ -113,5 +112,3 @@ E:/STM32/Workspace/dendy/NES/Inc/PPU.h:
 E:/STM32/Workspace/dendy/NES/Inc/PPU.h:
 E:/STM32/Workspace/dendy/NES/Inc/BUS.h:
 E:/STM32/Workspace/dendy/LCD/Inc/lcd.h:
-../Core/Inc/spi.h:
-../Core/Inc/main.h:

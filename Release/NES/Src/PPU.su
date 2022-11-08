@@ -1,4 +1,4 @@
-../NES/Src/PPU.c:139:6:PPU_reset	4	static
+../NES/Src/PPU.c:138:6:PPU_reset	4	static
 ../NES/Src/PPU.c:159:6:loadBackgroundShifters	4	static
 ../NES/Src/PPU.c:166:6:updateShifters	4	static
 ../NES/Src/PPU.c:186:6:render	56	static

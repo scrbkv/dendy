@@ -38,7 +38,8 @@ NES/Src/BUS.o: ../NES/Src/BUS.c E:/STM32/Workspace/dendy/NES/Inc/BUS.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_ll_usb.h \
  ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd_ex.h \
- E:/STM32/Workspace/dendy/NES/Inc/PPU.h
+ E:/STM32/Workspace/dendy/NES/Inc/PPU.h ../Core/Inc/spi.h \
+ ../Core/Inc/main.h
 E:/STM32/Workspace/dendy/NES/Inc/BUS.h:
 E:/STM32/Workspace/dendy/NES/Inc/Catridge.h:
 ../Core/Inc/main.h:
@@ -81,3 +82,5 @@ E:/STM32/Workspace/dendy/NES/Inc/Catridge.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_ll_usb.h:
 ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd_ex.h:
 E:/STM32/Workspace/dendy/NES/Inc/PPU.h:
+../Core/Inc/spi.h:
+../Core/Inc/main.h:

@@ -1,2 +1,3 @@
 ../NES/Src/BUS.c:18:9:BUS_cpuRead	0	static
-../NES/Src/BUS.c:34:6:BUS_cpuWrite	32	static
+../NES/Src/BUS.c:34:6:BUS_cpuWrite	4	static
+../NES/Src/BUS.c:52:6:BUS_dma_clock	16	static
